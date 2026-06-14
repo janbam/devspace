@@ -100,14 +100,19 @@ Use release builds for long-running MCP server processes:
 ```bash
 npm run release:build
 
-DEVSPACE_TOKEN="change-me" \
-DEVSPACE_ALLOWED_ROOTS="/home/waishnav/personal,/home/waishnav/work" \
-DEVSPACE_ALLOWED_HOSTS="localhost,127.0.0.1,agent.gitcms.blog" \
-DEVSPACE_PUBLIC_BASE_URL="https://agent.gitcms.blog" \
-DEVSPACE_TOOL_MODE="minimal" \
-DEVSPACE_TOOL_NAMING="short" \
-npm run release:start
+env \
+  DEVSPACE_TOKEN="change-me" \
+  DEVSPACE_ALLOWED_ROOTS="/home/waishnav/personal,/home/waishnav/work" \
+  DEVSPACE_ALLOWED_HOSTS="localhost,127.0.0.1,agent.gitcms.blog" \
+  DEVSPACE_PUBLIC_BASE_URL="https://agent.gitcms.blog" \
+  DEVSPACE_TOOL_MODE="minimal" \
+  DEVSPACE_TOOL_NAMING="short" \
+  npm run release:start
 ```
+
+The `DEVSPACE_*` assignments must be part of the same command invocation, or
+exported first. Running each assignment as a separate shell command will not pass
+those values to `npm run release:start`.
 
 `release:build` runs the normal build, copies the built `dist/` tree into a new
 `releases/<release-id>/dist` directory, and updates `releases/current` to point
