@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadConfig } from "./config.js";
+import { describeTrustProxy, loadConfig, trustForwardedHeaders } from "./config.js";
 
 const emptyConfigDir = mkdtempSync(join(tmpdir(), "devspace-empty-config-test-"));
 const baseEnv = {
@@ -72,6 +72,53 @@ assert.equal(loadConfig({ ...baseEnv, DEVSPACE_LOG_ASSETS: "1" }).logging.assets
 assert.equal(loadConfig({ ...baseEnv, DEVSPACE_LOG_TOOL_CALLS: "0" }).logging.toolCalls, false);
 assert.equal(loadConfig({ ...baseEnv, DEVSPACE_LOG_SHELL_COMMANDS: "1" }).logging.shellCommands, true);
 assert.equal(loadConfig({ ...baseEnv, DEVSPACE_TRUST_PROXY: "1" }).logging.trustProxy, true);
+
+// trust-proxy hops gate: unset preserves the upstream boolean behavior exactly.
+assert.equal(loadConfig(baseEnv).trustProxyHops, undefined);
+assert.equal(loadConfig({ ...baseEnv, DEVSPACE_TRUST_PROXY_HOPS: "auto" }).trustProxyHops, 0);
+assert.equal(
+  loadConfig({ ...baseEnv, DEVSPACE_PUBLIC_BASE_URL: "https://tunnel.example.com", DEVSPACE_TRUST_PROXY_HOPS: "auto" })
+    .trustProxyHops,
+  1,
+);
+assert.equal(loadConfig({ ...baseEnv, DEVSPACE_TRUST_PROXY_HOPS: "2" }).trustProxyHops, 2);
+assert.equal(loadConfig({ ...baseEnv, DEVSPACE_TRUST_PROXY_HOPS: "0" }).trustProxyHops, 0);
+// 0.0.0.0 is loopback for `auto` parity with localPublicBaseUrl normalization.
+assert.equal(
+  loadConfig({ ...baseEnv, DEVSPACE_PUBLIC_BASE_URL: "http://0.0.0.0:7676", DEVSPACE_TRUST_PROXY_HOPS: "auto" })
+    .trustProxyHops,
+  0,
+);
+// Gate is authoritative over the upstream boolean when set.
+assert.equal(
+  trustForwardedHeaders(loadConfig({ ...baseEnv, DEVSPACE_TRUST_PROXY: "1", DEVSPACE_TRUST_PROXY_HOPS: "0" })),
+  false,
+);
+// Gate unset defers to the upstream boolean.
+assert.equal(trustForwardedHeaders(loadConfig({ ...baseEnv, DEVSPACE_TRUST_PROXY: "1" })), true);
+assert.equal(trustForwardedHeaders(loadConfig(baseEnv)), false);
+// Gate-unset banner mirrors upstream strings byte-for-byte (no "permissive" leak).
+assert.equal(describeTrustProxy(loadConfig({ ...baseEnv, DEVSPACE_TRUST_PROXY: "1" })), "enabled");
+assert.equal(describeTrustProxy(loadConfig(baseEnv)), "disabled");
+// Gate-set banner names the resolved hop count.
+assert.equal(
+  describeTrustProxy(loadConfig({ ...baseEnv, DEVSPACE_PUBLIC_BASE_URL: "https://tunnel.example.com", DEVSPACE_TRUST_PROXY_HOPS: "auto" })),
+  "enabled (hops=1)",
+);
+assert.equal(describeTrustProxy(loadConfig({ ...baseEnv, DEVSPACE_TRUST_PROXY_HOPS: "0" })), "disabled (hops=0)");
+
+assert.throws(
+  () => loadConfig({ ...baseEnv, DEVSPACE_TRUST_PROXY_HOPS: "foo" }),
+  /Invalid DEVSPACE_TRUST_PROXY_HOPS: foo/,
+);
+assert.throws(
+  () => loadConfig({ ...baseEnv, DEVSPACE_TRUST_PROXY_HOPS: "-1" }),
+  /Invalid DEVSPACE_TRUST_PROXY_HOPS: -1/,
+);
+assert.throws(
+  () => loadConfig({ ...baseEnv, DEVSPACE_TRUST_PROXY_HOPS: "1.5" }),
+  /Invalid DEVSPACE_TRUST_PROXY_HOPS: 1.5/,
+);
 
 assert.throws(
   () => loadConfig({ ...baseEnv, DEVSPACE_LOG_LEVEL: "trace" }),

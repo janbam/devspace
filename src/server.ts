@@ -17,7 +17,13 @@ import {
 import express from "express";
 import type { Request, Response } from "express";
 import * as z from "zod/v4";
-import { loadConfig, type ServerConfig, type WidgetMode } from "./config.js";
+import {
+  describeTrustProxy,
+  loadConfig,
+  trustForwardedHeaders,
+  type ServerConfig,
+  type WidgetMode,
+} from "./config.js";
 import {
   logEvent,
   requestIp,
@@ -257,7 +263,7 @@ function sendJsonRpcError(
 
 function requestLogFields(req: Request, config: ServerConfig): Record<string, unknown> {
   return {
-    ip: requestIp(req, config.logging.trustProxy),
+    ip: requestIp(req, trustForwardedHeaders(config)),
     host: req.header("host"),
     userAgent: req.header("user-agent"),
     origin: req.header("origin"),
@@ -1286,7 +1292,10 @@ export function createServer(config = loadConfig()): RunningServer {
   const workspaces = new WorkspaceRegistry(config, workspaceStore);
   const reviewCheckpoints = createReviewCheckpointManager();
 
-  if (config.logging.trustProxy) {
+  // Hops gate is authoritative when set; otherwise preserve upstream boolean behavior.
+  if (config.trustProxyHops !== undefined) {
+    app.set("trust proxy", config.trustProxyHops);
+  } else if (config.logging.trustProxy) {
     app.set("trust proxy", true);
   }
 
@@ -1459,7 +1468,7 @@ if (await isMainModule()) {
     console.log(`logging: ${config.logging.level} ${config.logging.format}`);
     console.log(`request logging: ${config.logging.requests ? "enabled" : "disabled"}`);
     console.log(`asset logging: ${config.logging.assets ? "enabled" : "disabled"}`);
-    console.log(`trust proxy: ${config.logging.trustProxy ? "enabled" : "disabled"}`);
+    console.log(`trust proxy: ${describeTrustProxy(config)}`);
   });
 
   const shutdown = () => {

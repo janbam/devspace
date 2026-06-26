@@ -100,6 +100,27 @@ Use this only for intentional local debugging:
 DEVSPACE_ALLOWED_HOSTS="*" npx @waishnav/devspace serve
 ```
 
+## `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR` Or `ERR_ERL_PERMISSIVE_TRUST_PROXY`
+
+These warnings come from `express-rate-limit` when DevSpace runs behind a tunnel
+(ngrok, Cloudflare Tunnel, Pinggy) without a correct `trust proxy` setting. They
+are non-fatal warnings, not the cause of 400 responses.
+
+Set:
+
+```bash
+DEVSPACE_TRUST_PROXY_HOPS=auto npx @waishnav/devspace serve
+```
+
+This trusts a single proxy hop, which satisfies both validations. Use an
+explicit integer for layered proxies. Leaving it unset keeps the upstream
+`DEVSPACE_TRUST_PROXY` behavior.
+
+Cloudflare Tunnel can present two proxy hops (edge to cloudflared to origin)
+when `cloudflared` does not collapse `X-Forwarded-For`. In that layout `auto`
+(1 hop) would resolve `req.ip` to the edge address rather than the real client,
+so set an explicit hop count such as `DEVSPACE_TRUST_PROXY_HOPS=2`.
+
 ## OAuth Redirect Host Rejected
 
 By default, DevSpace allows redirects for:

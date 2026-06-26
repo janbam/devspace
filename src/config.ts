@@ -26,6 +26,34 @@ export interface ServerConfig {
   skillPaths: string[];
   agentDir: string;
   logging: LoggingConfig;
+  /**
+   * Express `trust proxy` hop count. `undefined` defers to the upstream
+   * `DEVSPACE_TRUST_PROXY` boolean so the original behavior is preserved when
+   * the hops gate is not set.
+   */
+  trustProxyHops: number | undefined;
+}
+
+/**
+ * Whether request logging should read forwarded headers (cf-connecting-ip /
+ * x-forwarded-for). When the hops gate is set it is authoritative; otherwise
+ * the upstream `DEVSPACE_TRUST_PROXY` boolean decides, matching upstream.
+ */
+export function trustForwardedHeaders(config: ServerConfig): boolean {
+  if (config.trustProxyHops !== undefined) return config.trustProxyHops > 0;
+  return config.logging.trustProxy;
+}
+
+/** Short human-readable trust-proxy state for startup banners. */
+export function describeTrustProxy(config: ServerConfig): string {
+  // Gate-unset path mirrors the exact upstream banner strings ("enabled"/"disabled")
+  // so the upstream startup output is reproducible byte-for-byte.
+  if (config.trustProxyHops === undefined) {
+    return config.logging.trustProxy ? "enabled" : "disabled";
+  }
+  return config.trustProxyHops > 0
+    ? `enabled (hops=${config.trustProxyHops})`
+    : "disabled (hops=0)";
 }
 
 function parsePort(value: string | number | undefined): number {
@@ -77,6 +105,33 @@ function normalizeAllowedHosts(rawHosts: string[], derivedHosts: string[]): stri
 
 function parseBoolean(value: string | undefined): boolean {
   return ["1", "true", "yes", "on"].includes(value?.toLowerCase() ?? "");
+}
+
+/** Raw value of `DEVSPACE_TRUST_PROXY_HOPS`: undefined (gate unset), "auto", or a hop count. */
+function parseTrustProxyHopsRaw(value: string | undefined): undefined | "auto" | number {
+  if (value === undefined || value === "") return undefined;
+  if (value.toLowerCase() === "auto") return "auto";
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`Invalid DEVSPACE_TRUST_PROXY_HOPS: ${value}. Use "auto" or a non-negative integer.`);
+  }
+  return parsed;
+}
+
+// 0.0.0.0 is treated as loopback to match localPublicBaseUrl, which maps the
+// unspecified bind address to 127.0.0.1 for the derived default public URL.
+function isLoopbackHost(hostname: string): boolean {
+  return ["localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"].includes(hostname);
+}
+
+/** Resolves "auto" to a concrete hop count: one proxy behind a tunnel, none on loopback. */
+function resolveTrustProxyHops(
+  raw: undefined | "auto" | number,
+  publicBaseUrl: string,
+): number | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === "auto") return isLoopbackHost(new URL(publicBaseUrl).hostname) ? 0 : 1;
+  return raw;
 }
 
 function parseMinimalTools(env: NodeJS.ProcessEnv): boolean {
@@ -236,6 +291,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     skillPaths: parsePathList(env.DEVSPACE_SKILL_PATHS),
     agentDir: resolve(expandHomePath(env.DEVSPACE_AGENT_DIR ?? files.config.agentDir ?? defaultAgentDir())),
     logging: parseLoggingConfig(env),
+    trustProxyHops: resolveTrustProxyHops(
+      parseTrustProxyHopsRaw(env.DEVSPACE_TRUST_PROXY_HOPS),
+      publicBaseUrl,
+    ),
   };
 }
 
