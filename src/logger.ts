@@ -52,8 +52,8 @@ export function logEvent(
   }
 }
 
-export function requestIp(req: Request, trustProxy: boolean): string | undefined {
-  if (trustProxy) {
+export function requestIp(req: Request, trustForwarded: boolean): string | undefined {
+  if (trustForwarded) {
     const cfConnectingIp = firstHeaderValue(req.header("cf-connecting-ip"));
     if (cfConnectingIp) return cfConnectingIp;
 

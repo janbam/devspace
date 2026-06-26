@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import * as prompts from "@clack/prompts";
 import { getShellConfig } from "@earendil-works/pi-coding-agent";
 import { satisfies } from "semver";
-import { loadConfig } from "./config.js";
+import { describeTrustProxy, loadConfig } from "./config.js";
 import {
   generateOwnerToken,
   loadDevspaceFiles,
@@ -193,6 +193,7 @@ async function serve(): Promise<void> {
     }
     console.log("auth: Owner password approval required");
     console.log(`logging: ${config.logging.level} ${config.logging.format}`);
+    console.log(`trust proxy: ${describeTrustProxy(config)}`);
   });
 
   const shutdown = () => {

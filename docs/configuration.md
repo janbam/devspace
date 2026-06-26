@@ -109,6 +109,14 @@ npx @waishnav/devspace serve
 | `DEVSPACE_LOG_TOOL_CALLS` | `1` |
 | `DEVSPACE_LOG_SHELL_COMMANDS` | `0` |
 | `DEVSPACE_TRUST_PROXY` | `0` |
+| `DEVSPACE_TRUST_PROXY_HOPS` | _(unset)_ |
+
+Set `DEVSPACE_TRUST_PROXY_HOPS=auto` when serving behind a tunnel such as ngrok,
+Cloudflare Tunnel, or Pinggy. It configures Express `trust proxy` with a single
+trusted hop so `express-rate-limit` can identify real client IPs without the
+permissive `true` setting. Leave it unset to preserve the original
+`DEVSPACE_TRUST_PROXY` boolean behavior. Set an explicit integer such as `2`
+when there are multiple proxies in front of DevSpace.
 
 Set `DEVSPACE_LOG_FORMAT=pretty` for local debugging.
 
